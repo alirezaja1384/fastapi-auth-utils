@@ -18,7 +18,7 @@ class Permission(BaseModel):
     roles: list[str] | None = None
 
 
-class JWTUser(BaseUser, BaseModel):
+class JWTUser(BaseModel, BaseUser[Permission]):
     """A test user class which has sub and permissions"""
 
     sub: str
@@ -26,7 +26,7 @@ class JWTUser(BaseUser, BaseModel):
     claims: list[str]
     roles: list[str] = []
 
-    def has_perm(self, perm: Permission):
+    def has_perm(self, perm: Permission) -> bool:
         def has_roles(roles: list[str]):
             return all(map(lambda role: role in self.roles, roles))
 

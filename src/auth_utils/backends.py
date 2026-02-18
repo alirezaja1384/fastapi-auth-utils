@@ -1,7 +1,9 @@
 """Authentication backend for starlette's AuthenticationMiddleware."""
 
+from __future__ import annotations
+
 import logging
-from typing import Awaitable, Callable, Sequence, Type
+from typing import Any, Awaitable, Callable, Generic, Sequence, TypeVar
 
 import jwt
 from starlette.authentication import (
@@ -15,7 +17,10 @@ from starlette.requests import HTTPConnection
 from auth_utils.utils import BaseUser
 
 
-class JWTAuthBackend(AuthenticationBackend):
+UserT = TypeVar("UserT", bound=BaseUser[Any])
+
+
+class JWTAuthBackend(AuthenticationBackend, Generic[UserT]):
     """
     An authentication backend for starlette's `AuthenticationMiddleware` which
         relies on JWT bearer tokens.
@@ -26,8 +31,8 @@ class JWTAuthBackend(AuthenticationBackend):
     audience: str | None
     issuer: str | None
 
-    user_class: Type[BaseUser] | None
-    get_user: Callable[[dict], Awaitable[BaseUser | None]] | None
+    user_class: type[UserT] | None
+    get_user: Callable[[dict[str, Any]], Awaitable[UserT | None]] | None
 
     def __init__(
         self,
@@ -35,8 +40,10 @@ class JWTAuthBackend(AuthenticationBackend):
         decode_algorithms: list[str],
         audience: str | None = None,
         issuer: str | None = None,
-        user_class: Type[BaseUser] | None = None,
-        get_user: Callable[[dict], Awaitable[BaseUser | None]] | None = None,
+        user_class: type[UserT] | None = None,
+        get_user: (
+            Callable[[dict[str, Any]], Awaitable[UserT | None]] | None
+        ) = None,
     ) -> None:
         """
         Args:
@@ -49,12 +56,13 @@ class JWTAuthBackend(AuthenticationBackend):
 
             issuer (str | None, optional): Valid jwt issuer. Defaults to None.
 
-            user_class (Type[BaseUser]): A BaseUser subclass which accepts
+            user_class (type[BaseUser[Any]]): A BaseUser subclass which accepts
                 payload data as kwargs. Has priority over get_user.
                 Defaults to None.
 
             get_user (
-                Callable[[dict], Awaitable[BaseUser | None]] | None, optional
+                Callable[[dict[str, Any]], Awaitable[BaseUser[Any] | None]]
+                | None, optional
             ):
                 An async function which returns the authenticated user when
                     payload data is valid and `None` if not. Defaults to None.
@@ -75,7 +83,7 @@ class JWTAuthBackend(AuthenticationBackend):
 
         self.logger = logging.getLogger("jwt-auth-backend")
 
-    async def get_user_instance(self, payload: dict) -> BaseUser | None:
+    async def get_user_instance(self, payload: dict[str, Any]) -> UserT | None:
         """Returns the user instance using the jwt payload.
 
         NOTE: `user_class` has priority over `get_user`.
@@ -84,17 +92,18 @@ class JWTAuthBackend(AuthenticationBackend):
             payload (dict): The JWT token's payload.
 
         Returns:
-            BaseUser | None: The instance of `user_class` or result of
+            BaseUser[Any] | None: The instance of `user_class` or result of
                 `get_user(payload)`.
         """
         if self.user_class:
             return self.user_class(**payload)
         elif self.get_user:
             return await self.get_user(payload)
+        return None
 
     def get_payload(
         self, token: str, fail_silently: bool, log_errors: bool = True
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Returns the payload of VALID token.
 
         Args:
@@ -134,7 +143,7 @@ class JWTAuthBackend(AuthenticationBackend):
 
     async def authenticate(
         self, conn: HTTPConnection
-    ) -> tuple[AuthCredentials, BaseUser | UnauthenticatedUser] | None:
+    ) -> tuple[AuthCredentials, UserT | UnauthenticatedUser] | None:
         """Authenticates the users who have a valid JWT token.
 
         Args:
@@ -177,18 +186,19 @@ class JWTAuthBackend(AuthenticationBackend):
             return (AuthCredentials(), UnauthenticatedUser())
 
 
-class APIKeyAuthBackend(AuthenticationBackend):
+class APIKeyAuthBackend(AuthenticationBackend, Generic[UserT]):
     api_key_header: str
-    get_user: Callable[[str], Awaitable[BaseUser | None]]
+    get_user: Callable[[str], Awaitable[UserT | None]]
 
     def __init__(
         self,
-        get_user: Callable[[str], Awaitable[BaseUser | None]],
+        get_user: Callable[[str], Awaitable[UserT | None]],
         api_key_header: str = "X-API-Key",
     ):
         """
         Args:
-            get_user (Callable[[str], Awaitable[BaseUser  |  None]]): An async
+            get_user (Callable[[str], Awaitable[BaseUser[Any] | None]]):
+                An async
                 function which returns the authenticated user given the
                 API key.
 
@@ -200,13 +210,13 @@ class APIKeyAuthBackend(AuthenticationBackend):
 
     async def authenticate(
         self, conn: HTTPConnection
-    ) -> tuple[AuthCredentials, BaseUser | UnauthenticatedUser] | None:
+    ) -> tuple[AuthCredentials, UserT | UnauthenticatedUser] | None:
         """
         Retrieves the API key from the request header and authenticates
             the returned user from `get_user(api_key)` if not None.
 
         Returns:
-            tuple[AuthCredentials, BaseUser | UnauthenticatedUser] | None:
+            tuple[AuthCredentials, BaseUser[Any] | UnauthenticatedUser] | None:
                 The authentication result.
         """
         api_key = conn.headers.get(self.api_key_header, None)
@@ -214,7 +224,7 @@ class APIKeyAuthBackend(AuthenticationBackend):
         # When request does not provide an API key, there's no reason for
         #   this backend to get involved.
         if not api_key:
-            return
+            return None
 
         if user := await self.get_user(api_key):
             return (AuthCredentials(["authenticated"]), user)
@@ -236,13 +246,13 @@ class AuthBackendsWrapper(AuthenticationBackend):
 
     async def authenticate(
         self, conn: HTTPConnection
-    ) -> tuple["AuthCredentials", "StarletteBaseUser"] | None:
+    ) -> tuple[AuthCredentials, StarletteBaseUser] | None:
         """
         Calls each backend's authenticate() respectively and return the
             first non-None result. Whether it is authenticated or not.
 
         Returns:
-            tuple["AuthCredentials", "StarletteBaseUser"] | None: The
+            tuple[AuthCredentials, StarletteBaseUser] | None: The
                 first returned authentication result.
         """
         for backend in self.backends:
@@ -250,3 +260,4 @@ class AuthBackendsWrapper(AuthenticationBackend):
                 auth_result := await backend.authenticate(conn=conn)
             ) is not None:
                 return auth_result
+        return None

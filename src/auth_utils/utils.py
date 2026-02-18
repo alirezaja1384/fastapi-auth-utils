@@ -1,5 +1,15 @@
+from __future__ import annotations
+
 from http import HTTPStatus
-from typing import Annotated, Any, Sequence, Type
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    Generic,
+    Sequence,
+    TypeGuard,
+    TypeVar,
+)
 
 from fastapi import Depends, HTTPException, Request
 from starlette.authentication import (
@@ -8,7 +18,11 @@ from starlette.authentication import (
 )
 
 
-class BaseUser(StarletteBaseUser):
+PermT = TypeVar("PermT")
+UserT = TypeVar("UserT", bound="BaseUser[Any]")
+
+
+class BaseUser(StarletteBaseUser, Generic[PermT]):
     """Base user class
 
     Raises:
@@ -17,21 +31,21 @@ class BaseUser(StarletteBaseUser):
     """
 
     @property
-    def is_authenticated(self):
+    def is_authenticated(self) -> bool:
         return True
 
-    def has_perm(self, perm: Any) -> bool:
+    def has_perm(self, perm: PermT) -> bool:
         """Checks if user has a specific permission or not.
 
         Args:
-            perm (Any): The permission
+            perm (PermT): The permission
 
         Raises:
             NotImplementedError: This method must be implemented by user.
         """
         raise NotImplementedError()
 
-    def has_perms(self, perms: Sequence[Any]) -> bool:
+    def has_perms(self, perms: Sequence[PermT]) -> bool:
         """Checks if user has all given permissions or not.
         Calls has_perm() for each permission by default.
 
@@ -41,7 +55,7 @@ class BaseUser(StarletteBaseUser):
         return all(map(self.has_perm, perms))
 
 
-def get_user(request: Request) -> BaseUser | UnauthenticatedUser:
+def get_user(request: Request) -> BaseUser[Any] | UnauthenticatedUser:
     """Returns the current user
 
     NOTE: This function DOES NOT authenticate the user by itself.
@@ -52,26 +66,40 @@ def get_user(request: Request) -> BaseUser | UnauthenticatedUser:
         request (Request): User's http request.
 
     Returns:
-        BaseUser | UnauthenticatedUser: Current user.
+        BaseUser[Any] | UnauthenticatedUser: Current user.
     """
     return request.user
 
 
+def _is_authenticated_user(
+    user: StarletteBaseUser, user_class: type[UserT]
+) -> TypeGuard[UserT]:
+    return bool(user.is_authenticated) and isinstance(user, user_class)
+
+
 def auth_required(
-    permissions: list[Any] | None = None, user_class: Type[BaseUser] = BaseUser
-):
+    permissions: Sequence[Any] | None = None,
+    user_class: type[BaseUser[Any]] = BaseUser,
+) -> Callable[[Annotated[StarletteBaseUser, Depends(get_user)]], None]:
     """Enforces authentication and authorization for current user.
 
     Args:
-        permissions (list[Any] | None, optional): The permissions user
+        permissions (Sequence[Any] | None, optional): The permissions user
             MUST have. Defaults to none.
+        user_class (type[BaseUser[Any]], optional): The user class to check.
+            Defaults to BaseUser.
+
+    Returns:
+        Callable[[Annotated[StarletteBaseUser, Depends(get_user)]], None]:
+            A dependency function which checks if the user is authenticated
+            and authorized.
     """
 
     def auth_checker(
-        user: Annotated[user_class, Depends(get_user)],
-    ):
+        user: Annotated[StarletteBaseUser, Depends(get_user)],
+    ) -> None:
         # If user is not authenticated or its authentication type is invalid
-        if not user.is_authenticated or not isinstance(user, user_class):
+        if not _is_authenticated_user(user, user_class):
             raise HTTPException(HTTPStatus.UNAUTHORIZED)
 
         # If user is not authorized

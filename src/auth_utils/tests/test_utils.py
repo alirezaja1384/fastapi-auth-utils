@@ -26,14 +26,14 @@ RANDOM_SCOPE = str(uuid.uuid4())
 API_KEY_SCOPES = {API_KEY: [RANDOM_SCOPE]}
 
 
-class JWTUser(BaseUser, BaseModel):
+class JWTUser(BaseModel, BaseUser[str]):
     """A test user class which has sub and claims"""
 
     sub: str
     roles: list[str]
     claims: list[str]
 
-    def has_perm(self, perm: str):
+    def has_perm(self, perm: str) -> bool:
         perm_type, perm_val = perm.split(":")
 
         match perm_type:
@@ -45,7 +45,7 @@ class JWTUser(BaseUser, BaseModel):
                 return False
 
 
-class APIKeyUser(BaseUser):
+class APIKeyUser(BaseUser[str]):
     _api_key: str
     _scopes: list[str]
 

@@ -34,14 +34,14 @@ class APIKeyPermission(BaseModel):
     scopes: list[str] | None = None
 
 
-class JWTUser(BaseUser, BaseModel):
+class JWTUser(BaseModel, BaseUser[JWTPermission]):
     """A test user class which has sub and permissions"""
 
     sub: str
     name: str = ""
     claims: list[str]
 
-    def has_perm(self, perm: JWTPermission):
+    def has_perm(self, perm: JWTPermission) -> bool:
         if not isinstance(perm, JWTPermission):
             raise ValueError(
                 f"Unsupported permission type `{perm.__class__.__name__}`!"
@@ -61,7 +61,7 @@ class JWTUser(BaseUser, BaseModel):
         return self.name
 
 
-class APIKeyUser(BaseUser):
+class APIKeyUser(BaseUser[APIKeyPermission]):
     """A test user class which has sub and permissions"""
 
     api_key: str
@@ -71,7 +71,7 @@ class APIKeyUser(BaseUser):
         self.api_key = api_key
         self.scopes = scopes
 
-    def has_perm(self, perm: APIKeyPermission):
+    def has_perm(self, perm: APIKeyPermission) -> bool:
         if not isinstance(perm, APIKeyPermission):
             raise ValueError(
                 f"Unsupported permission type `{perm.__class__.__name__}`!"

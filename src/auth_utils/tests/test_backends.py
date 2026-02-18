@@ -26,14 +26,14 @@ JWT_AUDIENCE = str(uuid.uuid4())
 VALID_API_KEY = str(uuid.uuid4())
 
 
-class JWTUser(BaseUser, BaseModel):
+class JWTUser(BaseModel, BaseUser[str]):
     """A test user class which has sub and permissions"""
 
     sub: str
     permissions: list[str]
 
 
-class APIKeyUser(BaseUser, BaseModel):
+class APIKeyUser(BaseModel, BaseUser[str]):
     api_key: str
 
 

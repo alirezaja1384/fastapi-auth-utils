@@ -1,5 +1,19 @@
 # Change log
 
+## Version 2.0.0
+
+### Breaking changes
+- `BaseUser` is now generic (`BaseUser[PermT]`) and permission checks are typed accordingly.
+- For Pydantic models, user classes should inherit `BaseModel` before `BaseUser[...]` to avoid Pydantic warnings (examples updated).
+
+### Changed
+- `JWTAuthBackend` and `APIKeyAuthBackend` are now generic over the authenticated user type.
+- Tighten typing around `auth_required()` and user class checks.
+
+### Examples
+- Update examples to parameterize `BaseUser[...]` and put `BaseModel` first where applicable.
+- `examples/requirememnts.txt` now references the published `fastapi-auth-utils` package name.
+
 ## Version 1.1.3
 
 ### Fixed

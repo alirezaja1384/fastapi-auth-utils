@@ -20,7 +20,7 @@ class Permission(BaseModel):
     scopes: list[str] | None = None
 
 
-class APIKeyUser(BaseUser):
+class APIKeyUser(BaseUser[Permission]):
     """A test user class which has sub and permissions"""
 
     api_key: str
@@ -30,7 +30,7 @@ class APIKeyUser(BaseUser):
         self.api_key = api_key
         self.scopes = scopes
 
-    def has_perm(self, perm: Permission):
+    def has_perm(self, perm: Permission) -> bool:
         def has_scopes(scopes: list[str]):
             return all(map(lambda scope: scope in self.scopes, scopes))
 
