@@ -1,5 +1,11 @@
 # Change log
 
+## Version 2.0.1
+
+### Changed
+- Packaging metadata updates (e.g. `project_urls`).
+- Internal refactors and test cleanups.
+
 ## Version 2.0.0
 
 ### Breaking changes
