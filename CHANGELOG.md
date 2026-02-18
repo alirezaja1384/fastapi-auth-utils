@@ -1,5 +1,13 @@
 # Change log
 
+## Version 2.0.2
+
+### Fixed
+- Ship typing marker (`py.typed`) and mark package as typed (PEP 561).
+
+### Changed
+- Packaging metadata updates (classifiers, package data).
+
 ## Version 2.0.1
 
 ### Changed

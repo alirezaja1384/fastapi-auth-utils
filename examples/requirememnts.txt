@@ -1,6 +1,6 @@
 
 fastapi==0.101.0
-fastapi-auth-utils==2.0.0
+fastapi-auth-utils==2.0.2
 pydantic==2.1.1
 PyJWT==2.8.0
 uvicorn==0.23.2
