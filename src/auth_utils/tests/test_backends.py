@@ -40,6 +40,7 @@ class APIKeyUser(BaseModel, BaseUser[str]):
 async def get_api_key_user(api_key: str) -> APIKeyUser | None:
     if api_key == VALID_API_KEY:
         return APIKeyUser(api_key=api_key)
+    return None
 
 
 app = FastAPI()
@@ -79,7 +80,9 @@ def tamper_jwt_header(token: str, new_header: dict) -> str:
     new_header_bytes = json.dumps(
         new_header, separators=(",", ":"), sort_keys=True
     ).encode()
-    return ".".join([_b64url_encode(new_header_bytes), payload_b64, signature_b64])
+    return ".".join(
+        [_b64url_encode(new_header_bytes), payload_b64, signature_b64]
+    )
 
 
 def generate_jwt_token(
@@ -202,7 +205,9 @@ def test_jwt_manipulated_header_alg_none():
     _, token = generate_jwt_token(permissions=[str(uuid.uuid4())])
     manipulated = tamper_jwt_header(token, {"alg": "none", "typ": "JWT"})
 
-    response = client.get("/me", headers={"Authorization": f"Bearer {manipulated}"})
+    response = client.get(
+        "/me", headers={"Authorization": f"Bearer {manipulated}"}
+    )
     assert response.status_code == 200
 
     response_json = response.json()
