@@ -1,3 +1,5 @@
+import base64
+import json
 import uuid
 import logging
 from datetime import datetime, timedelta
@@ -66,6 +68,18 @@ def me(request: Request):
 
 
 client = TestClient(app=app)
+
+
+def _b64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def tamper_jwt_header(token: str, new_header: dict) -> str:
+    header_b64, payload_b64, signature_b64 = token.split(".")
+    new_header_bytes = json.dumps(
+        new_header, separators=(",", ":"), sort_keys=True
+    ).encode()
+    return ".".join([_b64url_encode(new_header_bytes), payload_b64, signature_b64])
 
 
 def generate_jwt_token(
@@ -179,6 +193,65 @@ def test_jwt_invalid_bearer():
     response = client.get("/me", headers={"Authorization": "Bearer invalid"})
     assert response.status_code == 200
 
+    response_json = response.json()
+    assert response_json["is_authenticated"] is False
+    assert response_json["user"] is None
+
+
+def test_jwt_manipulated_header_alg_none():
+    _, token = generate_jwt_token(permissions=[str(uuid.uuid4())])
+    manipulated = tamper_jwt_header(token, {"alg": "none", "typ": "JWT"})
+
+    response = client.get("/me", headers={"Authorization": f"Bearer {manipulated}"})
+    assert response.status_code == 200
+
+    response_json = response.json()
+    assert response_json["is_authenticated"] is False
+    assert response_json["user"] is None
+
+
+def test_jwt_api_key_malformed_bearer_blocks_api_key():
+    response = client.get(
+        "/me",
+        headers={
+            "Authorization": "Bearer",
+            "X-API-Key": VALID_API_KEY,
+        },
+    )
+
+    assert response.status_code == 200
+    response_json = response.json()
+    assert response_json["is_authenticated"] is False
+    assert response_json["user"] is None
+
+
+def test_jwt_api_key_malformed_token_shape_blocks_api_key():
+    response = client.get(
+        "/me",
+        headers={
+            # Not a JWT (wrong number of segments)
+            "Authorization": "Bearer a.b",
+            "X-API-Key": VALID_API_KEY,
+        },
+    )
+
+    assert response.status_code == 200
+    response_json = response.json()
+    assert response_json["is_authenticated"] is False
+    assert response_json["user"] is None
+
+
+def test_jwt_api_key_bearer_token_with_spaces_blocks_api_key():
+    response = client.get(
+        "/me",
+        headers={
+            # Credentials contain spaces -> malformed bearer token
+            "Authorization": "Bearer a b",
+            "X-API-Key": VALID_API_KEY,
+        },
+    )
+
+    assert response.status_code == 200
     response_json = response.json()
     assert response_json["is_authenticated"] is False
     assert response_json["user"] is None

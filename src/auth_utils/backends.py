@@ -144,15 +144,24 @@ class JWTAuthBackend(AuthenticationBackend):
             tuple[AuthCredentials, BaseUser | UnauthenticatedUser] | None:
                 Authentication result.
         """
-        auth_header = conn.headers.get("Authorization", " ")
+        auth_header = conn.headers.get("Authorization")
+
+        # When request does not provide a bearer token, there's
+        #   no reason for this backend to get involved.
+        if not auth_header:
+            return None
+
+        scheme, _, credentials = auth_header.partition(" ")
+        if scheme.lower() != "bearer":
+            return None
+
+        token = credentials.strip()
+        if not token or " " in token:
+            # Malformed bearer header; treat as an auth failure to prevent
+            # falling through to other backends.
+            return (AuthCredentials(), UnauthenticatedUser())
 
         try:
-            # When request does not provide a bearer token, there's
-            #   no reason for this backend to get involved.
-            if not auth_header.lower().startswith("bearer "):
-                return
-
-            token = auth_header.split(" ")[1]
             payload = self.get_payload(
                 token=token, fail_silently=True, log_errors=True
             )
@@ -160,13 +169,12 @@ class JWTAuthBackend(AuthenticationBackend):
             # Authenticate the user if token is valid
             if payload and (user := await self.get_user_instance(payload)):
                 return (AuthCredentials(["authenticated"]), user)
-            else:
-                return (AuthCredentials(), UnauthenticatedUser())
+            return (AuthCredentials(), UnauthenticatedUser())
 
-        # If parsing payload data fail
+        # If parsing payload data fails, fail closed (do not fall through).
         except (ValueError, TypeError) as err:
             self.logger.log(logging.ERROR, err, exc_info=True)
-            return
+            return (AuthCredentials(), UnauthenticatedUser())
 
 
 class APIKeyAuthBackend(AuthenticationBackend):

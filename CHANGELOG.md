@@ -1,5 +1,14 @@
 # Change log
 
+## Version 1.1.3
+
+### Fixed
+- JWTAuthBackend: Harden bearer parsing to avoid 500s on malformed `Authorization` headers.
+- JWTAuthBackend: Fail closed on malformed bearer tokens / parsing errors to prevent falling through to other auth backends.
+
+### Tests
+- Add regression tests for tampered JWT headers (`alg=none`) and malformed bearer tokens.
+
 ## Version 1.1.2
  - README.md: Examples' link fixed for pypi.
  - Package's `__init__.py`: `__version__` added.
